@@ -1,63 +1,29 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-
-const app = express();
-app.use(bodyParser.json());
-
-const allowedZones = [
-  "esikado", "esikado campus", "esikado junction", "railway area", "botwe",
-  "campus", "umat esikado", "lecture hall", "hall", "hostel", "nearby communities"
-];
-
-const incidentKeywords = [
-  "robbery", "robbed", "theft", "stolen", "attack", "attacked", "assault",
-  "rape", "stab", "stabbing", "threat", "kidnap", "kidnapping", "chased",
-  "followed", "harassed", "molest", "snatched", "pursued", "injured", "hit"
-];
-
-function extractIncidentInfo(text) {
-  const lowerText = text.toLowerCase();
-
-  // Incident matching
-  const incidentMatch = incidentKeywords.find(word => lowerText.includes(word));
-
-  // Location matching
-  const locationMatch = allowedZones.find(zone =>
-    lowerText.includes(zone) || zone.includes(lowerText)
-  );
-
-  // Time matching
-  const timeMatch = lowerText.match(/\b\d{1,2}(:\d{2})?\s?(am|pm)?\b/);
-
-  console.log("🧩 Matched Incident:", incidentMatch);
-  console.log("🧭 Matched Location:", locationMatch);
-  console.log("⏰ Matched Time:", timeMatch?.[0]);
-
-  return {
-    incident: incidentMatch || null,
-    location: locationMatch || null,
-    time: timeMatch?.[0] || null
-  };
-}
-
 app.post("/webhook", (req, res) => {
-  const userInput = req.body.queryResult.queryText;
-  const info = extractIncidentInfo(userInput);
+  const userText = req.body.queryResult.queryText.toLowerCase();
 
-  if (!info.location) {
+  console.log("🔍 Received user input:", userText);
+
+  const incident = incidentKeywords.find(word => userText.includes(word));
+  const location = allowedZones.find(zone => userText.includes(zone));
+  const timeMatch = userText.match(/\b\d{1,2}(:\d{2})?\s?(am|pm)?\b/);
+
+  console.log("📍 Matched incident:", incident);
+  console.log("📍 Matched location:", location);
+  console.log("📍 Matched time:", timeMatch?.[0]);
+
+  if (!location) {
+    console.log("⚠️ Location not in allowed zones.");
     return res.json({
-      fulfillmentText: "Thank you for the report. Could you please clarify the location? We support incidents around the UMaT Esikado campus."
+      fulfillmentText: "Thanks for reporting. However, this location seems outside our safety coverage zone. Could you please clarify where it happened?"
     });
   }
 
-  const reply = `Thank you. You reported a "${info.incident || "safety issue"}" at "${info.location}"${info.time ? ` around ${info.time}` : ""}. We'll take note of it.`;
+  const response = `Thank you. You reported a "${incident || "safety concern"}" at "${location}"${timeMatch ? ` around ${timeMatch[0]}` : ""}. We've noted this.`;
 
-  return res.json({ fulfillmentText: reply });
+  console.log("✅ Final response:", response);
+
+  return res.json({
+    fulfillmentText: response
+  });
 });
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log("SAFEBOT Webhook running on port", port);
-});
-
 
