@@ -69,3 +69,6 @@ app.post('/webhook', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`SAFEBOT webhook running on port ${PORT}`));
+console.log("🔐 API Key:", process.env.OPENROUTER_API_KEY);
+console.log("🌐 Referer:", process.env.REFERER_URL);
+
