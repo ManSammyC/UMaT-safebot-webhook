@@ -4,13 +4,23 @@ const app = express();
 
 app.use(bodyParser.json());
 
-const allowedZones = ["esikado", "esikado campus", "esikado junction", "railway area", "botwe", "campus", "umat esikado", "lecture hall", "hall", "hostel", "nearby communities"];
+const allowedZones = [
+  "esikado", "esikado campus", "esikado junction", "railway area", "botwe", 
+  "campus", "umat esikado", "lecture hall", "hall", "hostel", "nearby communities"
+];
 
 
 function extractIncidentInfo(text) {
   const locationMatch = allowedZones.find(zone => text.toLowerCase().includes(zone));
   const timeMatch = text.match(/\b\d{1,2}(:\d{2})?\s?(am|pm)?\b/i);
-  const incidentMatch = text.match(/(robbery|theft|assault|attack|rape|stab|threat|kidnap|chased|followed|harassed)/i);
+  const incidentKeywords = [
+  "robbery", "robbed", "theft", "stolen", "attack", "attacked", "assault",
+  "rape", "stab", "stabbing", "threat", "kidnap", "kidnapping", "chased",
+  "followed", "harassed", "molest", "snatched", "pursued", "injured", "hit"
+];
+
+const incidentMatch = incidentKeywords.find(word => text.toLowerCase().includes(word));
+
 
   return {
     incident: incidentMatch?.[0] || null,
