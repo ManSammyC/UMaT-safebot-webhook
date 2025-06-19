@@ -25,7 +25,7 @@ app.post("/webhook", (req, res) => {
   // Match incident
   const incident = incidentKeywords.find(word => userText.includes(word));
 
-  // Match location
+  // Match location (allow partial matches)
   const location = allowedZones.find(zone => {
     const zoneWords = zone.toLowerCase().split(" ");
     return zoneWords.every(word => userText.includes(word));
