@@ -4,7 +4,8 @@ const app = express();
 
 app.use(bodyParser.json());
 
-const allowedZones = ["umat", "tarkwa", "fofo", "domeabra", "university hostel", "agyinamoa", "campus", "lecture hall", "hall", "junction"];
+const allowedZones = ["esikado", "esikado campus", "esikado junction", "railway area", "botwe", "campus", "umat esikado", "lecture hall", "hall", "hostel", "nearby communities"];
+
 
 function extractIncidentInfo(text) {
   const locationMatch = allowedZones.find(zone => text.toLowerCase().includes(zone));
