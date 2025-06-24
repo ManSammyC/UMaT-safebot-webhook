@@ -24,7 +24,7 @@ const openai = new OpenAI({
 // Allowed campus zones
 const allowedZones = [
   "esikado", "esikado junction", "esikado campus", "lecture hall",
-  "botwe", "railway area", "hostel", "hall", "umat esikado", "university hostel"
+  "bu", "railway area", "hostel", "hall", "umat esikado", "university hostel"
 ];
 
 // 🔍 Use GPT to extract report info
@@ -44,13 +44,14 @@ Reply ONLY in this JSON format:
 }
 `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userText }
-    ]
-  });
+ const response = await openai.chat.completions.create({
+  model: "gpt-4o", // ← GPT-4.1 capabilities
+  messages: [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userText }
+  ]
+});
+
 
   try {
     const cleanText = response.choices[0].message.content.trim();
