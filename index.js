@@ -1,73 +1,107 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const admin = require("firebase-admin");
-const app = express();
+const { OpenAI } = require("openai");
+require("dotenv").config();
 
+const app = express();
 app.use(bodyParser.json());
 
-// 🔐 Load Firebase credentials from env variable
+// 🔐 FIREBASE
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG_JSON);
-
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
 }
-
 const db = admin.firestore();
 
-// Zones we accept
+// 🔐 OPENAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Allowed campus zones
 const allowedZones = [
-  "esikado", "esikado campus", "esikado junction", "campus", 
-  "lecture hall", "botwe", "railway area", "umat esikado", 
-  "hostel", "hall", "university hostel"
+  "esikado", "esikado junction", "esikado campus", "lecture hall",
+  "botwe", "railway area", "hostel", "hall", "umat esikado", "university hostel"
 ];
 
-// Keywords to detect incident
-const incidentKeywords = [
-  "robbery", "robbed", "theft", "stolen", "assault", "attacked",
-  "stab", "stabbing", "rape", "chased", "followed", "harassed",
-  "snatched", "kidnap", "injured", "hit", "threat"
-];
+// 🔍 Use GPT to extract report info
+async function extractIncidentInfo(userText) {
+  const systemPrompt = `
+You are a campus safety assistant for the University of Mines and Technology, Esikado campus. 
+Given a student’s message, extract:
+1. Incident type
+2. Location (only if it's on/around Esikado campus)
+3. Time (if mentioned)
 
-app.post("/webhook", async (req, res) => {
-  const userTextRaw = req.body.queryResult.queryText || "";
-  const userText = userTextRaw.toLowerCase().replace(/[^\w\s]/gi, " ");
+Reply ONLY in this JSON format:
+{
+  "incident": "...",
+  "location": "...",
+  "time": "..."
+}
+`;
 
-  const incident = incidentKeywords.find(word => userText.includes(word));
-  const location = allowedZones.find(zone => {
-    const zoneWords = zone.toLowerCase().split(" ");
-    return zoneWords.every(word => userText.includes(word));
+  const response = await openai.chat.completions.create({
+    model: "gpt-3.5-turbo",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userText }
+    ]
   });
-  const timeMatch = userText.match(/\b\d{1,2}(:\d{2})?\s?(am|pm)?\b/i);
-
-  if (!location) {
-    return res.json({
-      fulfillmentText: "Thanks for your report. However, the location seems outside our safety zone. Can you clarify where it happened?"
-    });
-  }
-
-  const report = {
-    incident: incident || "unknown",
-    location,
-    time: timeMatch ? timeMatch[0] : "unspecified",
-    fullText: userTextRaw,
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  };
 
   try {
+    const cleanText = response.choices[0].message.content.trim();
+    const jsonStart = cleanText.indexOf("{");
+    const jsonEnd = cleanText.lastIndexOf("}") + 1;
+    const jsonString = cleanText.substring(jsonStart, jsonEnd);
+    return JSON.parse(jsonString);
+  } catch (err) {
+    console.error("❌ GPT response error:", err);
+    return { incident: null, location: null, time: null };
+  }
+}
+
+app.post("/webhook", async (req, res) => {
+  const userText = req.body.queryResult.queryText || "";
+
+  try {
+    const info = await extractIncidentInfo(userText);
+
+    const locationValid = allowedZones.some(zone =>
+      (info.location || "").toLowerCase().includes(zone)
+    );
+
+    if (!locationValid) {
+      return res.json({
+        fulfillmentText: "Thanks. Could you please clarify the location? It seems outside the Esikado campus zone."
+      });
+    }
+
+    const report = {
+      incident: info.incident || "unspecified",
+      location: info.location || "unspecified",
+      time: info.time || "unspecified",
+      fullText: userText,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    };
+
     await db.collection("reports").add(report);
-    const reply = `Thank you. You reported a "${report.incident}" at "${report.location}"${timeMatch ? ` around ${report.time}` : ""}. We've recorded this.`;
-    return res.json({ fulfillmentText: reply });
-  } catch (error) {
-    console.error("🔥 Error saving report:", error);
+
     return res.json({
-      fulfillmentText: "Sorry, we couldn't save your report. Please try again later."
+      fulfillmentText: `Thank you. You reported a "${report.incident}" at "${report.location}"${report.time !== "unspecified" ? ` around ${report.time}` : ""}. We've recorded this.`
+    });
+  } catch (err) {
+    console.error("🔥 Webhook error:", err);
+    return res.json({
+      fulfillmentText: "Sorry, I couldn’t process your report. Please try again."
     });
   }
 });
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log("✅ SAFEBOT webhook running with Firestore integration.");
+  console.log("✅ SAFEBOT with GPT is live on port", port);
 });
